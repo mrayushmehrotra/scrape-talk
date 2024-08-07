@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, ChangeEvent } from "react";
+import React, { useState, ChangeEvent, useEffect } from "react";
 import axios from "axios";
+//@ts-ignore
 import { getSubtitles } from "youtube-captions-scraper";
 
 const PALM_API_KEY = "AIzaSyCRtedjMow7pZPenWrn5Qg3XQiZrmeHPdI";
@@ -14,53 +15,65 @@ interface Message {
 
 const ChatBot: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [ytUrl, setYtUrl] = useState<String>("");
+  const [ytUrl, setYtUrl] = useState<string>("");
   const [inputText, setInputText] = useState<string>("");
-  const [loading, setLoading] = useState<Boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  function extractYouTubeVideoId(inputText: any) {
+  const isValidInputText = (inputText: string) => {
+    return inputText.trim() !== ""; // Simple validation logic
+  };
+
+  const extractYouTubeVideoId = () => {
     const regex =
       /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = inputText.match(regex);
+    const match = ytUrl.match(regex);
     return match ? match[1] : null;
-  }
-  getSubtitles({
-    videoID: extractYouTubeVideoId, // youtube video id
-    lang: "fr", // default: `en`
-  }).then((captions: string | any) => {
-    setInputText(captions);
-  });
+  };
+
+  const fetchSubtitles = async (videoId: string) => {
+    try {
+      const captions = await getSubtitles({
+        videoID: videoId,
+        lang: "en", // Change to desired language
+      });
+      setInputText(captions);
+    } catch (error) {
+      console.error("Error fetching subtitles:", error);
+    }
+  };
+
+  useEffect(() => {
+    const videoId = extractYouTubeVideoId();
+    if (videoId) {
+      fetchSubtitles(videoId);
+    }
+  }, [ytUrl]);
 
   const generateText = async () => {
     if (!isValidInputText(inputText)) {
       // Handle invalid input
       return;
     }
-    function isValidInputText(inputText: string) {
-      // Implement your validation logic here
-      // For example, check for empty strings, invalid characters, etc.
-      return true; // Replace with actual validation logic
-    }
+
     setLoading(true);
     const apiUrl =
       "https://generativelanguage.googleapis.com/v1beta3/models/text-bison-001:generateText";
 
     const requestData = {
       prompt: {
-        text: inputText,
+        text: `Act as the best teacher in the world. I'm giving you the subtitle of a YouTube video, understand it, and I'll ask some questions about it: ${inputText}`,
       },
       temperature: 0.25,
       top_k: 40,
       top_p: 0.95,
       candidate_count: 1,
     };
+
     const headers = {
       "Content-Type": "application/json",
     };
+
     try {
-      if (inputText.trim() === "") {
-        return;
-      }
       const response = await axios.post(
         `${apiUrl}?key=${PALM_API_KEY}`,
         requestData,
@@ -68,28 +81,25 @@ const ChatBot: React.FC = () => {
           headers,
         }
       );
+
       if (response.status === 200) {
-        if (
-          response.data &&
-          response.data.candidates &&
-          response.data.candidates.length > 0
-        ) {
-          const botResponse = response.data.candidates[0].output;
-          // add the user's input to the message array
-          const newUserMessage: Message = {
-            id: messages.length + 1,
-            text: inputText,
-            sender: "user",
-            timestamp: new Date().getTime(),
-          };
-          // add the bot input to the message array
-          const newBotMessage: Message = {
-            id: messages.length + 2,
-            text: botResponse,
-            sender: "bot",
-            timestamp: new Date().getTime(),
-          };
-          setMessages([...messages, newUserMessage, newBotMessage]);
+        const botResponse = response.data.candidates[0]?.output;
+        if (botResponse) {
+          setMessages((prevMessages) => [
+            ...prevMessages,
+            {
+              id: prevMessages.length + 1,
+              text: inputText,
+              sender: "user",
+              timestamp: Date.now(),
+            },
+            {
+              id: prevMessages.length + 2,
+              text: botResponse,
+              sender: "bot",
+              timestamp: Date.now(),
+            },
+          ]);
           setInputText("");
         } else {
           console.error("Response structure error");
@@ -98,55 +108,70 @@ const ChatBot: React.FC = () => {
         console.error("Google Cloud API Error");
       }
     } catch (error) {
-      console.error("Line 76 Error:", error);
+      console.error("Error generating text:", error);
     }
+
     setLoading(false);
   };
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
-  };
-
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Scrape Talk</h1>
+    <div className="p-6 bg-gray-100 min-h-screen">
+      <h1 className="text-3xl font-bold mb-6 text-center">Scrape Talk</h1>
 
-      <div className="space-y-4">
-        {messages.map((item) => (
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Paste the YouTube URL"
+          value={ytUrl}
+          onChange={(e) => setYtUrl(e.target.value)}
+          className="w-full p-3 border rounded-lg text-black mb-2"
+        />
+        <button
+          //@ts-ignore
+          onClick={() => fetchSubtitles(extractYouTubeVideoId())}
+          className="w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300"
+        >
+          Learn
+        </button>
+      </div>
+
+      <div className="space-y-4 mb-4">
+        {messages.map((message) => (
           <div
-            key={item.id}
+            key={message.id}
             className={`flex ${
-              item.sender === "user" ? "justify-end" : "justify-start"
+              message.sender === "user" ? "justify-end" : "justify-start"
             }`}
           >
             <div
-              className={`p-3 rounded-lg ${
-                item.sender === "user"
+              className={`p-4 rounded-lg max-w-xl ${
+                message.sender === "user"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-black"
               }`}
             >
-              <p>{item.text}</p>
+              <p>{message.text}</p>
               <p className="text-xs mt-2">
-                {new Date(item.timestamp).toLocaleTimeString()}
+                {new Date(message.timestamp).toLocaleTimeString()}
               </p>
             </div>
           </div>
         ))}
       </div>
-      <div className="flex mt-4">
-        <input
-          placeholder="Let's talk Boi..."
-          value={inputText}
-          onChange={handleInputChange}
-          className="flex-1 p-2 border rounded-lg text-black text-2xl "
-        />
 
+      <div className="flex">
+        <input
+          type="text"
+          placeholder="Let's chat"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          className="flex-1 p-3 border rounded-lg text-black text-lg"
+        />
         <button
           onClick={generateText}
-          className="ml-2 p-2 bg-blue-500   text-white rounded-lg   "
+          className="ml-2 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-700 transition duration-300"
         >
-          Send
+          {loading ? "Sending..." : "Send"}
         </button>
       </div>
     </div>
