@@ -18,10 +18,14 @@ const ChatBot: React.FC = () => {
   const [inputText, setInputText] = useState<string>("");
   const [loading, setLoading] = useState<Boolean>(false);
 
-  const extractId = (ytUrl) => {};
-
+  function extractYouTubeVideoId(inputText: any) {
+    const regex =
+      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = inputText.match(regex);
+    return match ? match[1] : null;
+  }
   getSubtitles({
-    videoID: "XXXXX", // youtube video id
+    videoID: extractYouTubeVideoId, // youtube video id
     lang: "fr", // default: `en`
   }).then((captions: string | any) => {
     setInputText(captions);
@@ -40,6 +44,7 @@ const ChatBot: React.FC = () => {
     setLoading(true);
     const apiUrl =
       "https://generativelanguage.googleapis.com/v1beta3/models/text-bison-001:generateText";
+
     const requestData = {
       prompt: {
         text: inputText,
@@ -105,6 +110,7 @@ const ChatBot: React.FC = () => {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Scrape Talk</h1>
+
       <div className="space-y-4">
         {messages.map((item) => (
           <div
