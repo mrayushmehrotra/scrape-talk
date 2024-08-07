@@ -4,7 +4,7 @@ import axios from "axios";
 //@ts-ignore
 import { getSubtitles } from "youtube-captions-scraper";
 
-const PALM_API_KEY = "AIzaSyCRtedjMow7pZPenWrn5Qg3XQiZrmeHPdI";
+const PALM_API_KEY = process.env.PALM_API_KEY;
 
 interface Message {
   id: number;
